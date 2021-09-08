@@ -121,7 +121,6 @@ private:
 
     void parsingStateChanged(Project *project);
 
-    QTimer m_timer;
     QSet<ExpandData> m_toExpand;
 };
 
