@@ -290,6 +290,15 @@ GitScrollBarHighlighterPrivate::GitScrollBarHighlighterPrivate()
             this, &GitScrollBarHighlighterPrivate::updateHighlightOfCurrentDocument);
 }
 
+void GitScrollBarHighlighterPrivate::setScrollbarStyle(Core::IEditor* editor)
+{
+    if (auto * textEditorWidget = qobject_cast<TextEditor::TextEditorWidget *>(editor->widget())) {
+        auto * scrollbar = textEditorWidget->highlightScrollBarController()->scrollBar();
+        if (scrollbar != nullptr) {
+            scrollbar->setStyleSheet(QString::fromUtf8(SCROLLBAR_STYLE));
+        }
+    }
+}
 void GitScrollBarHighlighterPrivate::updateStatusOfCurrentFile()
 {
     if (m_updateWatcher.isRunning() || m_currentDocument == nullptr) {
@@ -454,6 +463,10 @@ bool GitScrollBarHighlighterPlugin::initialize(const QStringList &arguments, QSt
     Q_UNUSED(errorMessage)
     git_libgit2_init();
     d = std::make_unique<GitScrollBarHighlighterPrivate>();
+
+    connect(Core::EditorManager::instance(), &Core::EditorManager::editorCreated, this, [=] (Core::IEditor *editor) {
+        d->setScrollbarStyle(editor);
+    });
     return true;
 }
 
