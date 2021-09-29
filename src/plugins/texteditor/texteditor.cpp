@@ -5206,7 +5206,8 @@ void TextEditorWidgetPrivate::updateCurrentLineInScrollbar()
                         layout->lineForTextPosition(tc.positionInBlock()).lineNumber();
                 m_highlightScrollBarController->addHighlight({Constants::SCROLL_BAR_CURRENT_LINE, pos,
                                                               Theme::TextEditor_CurrentLine_ScrollBarColor,
-                                                              Highlight::HighestPriority});
+                                                              Highlight::HighestPriority,
+                                                              Highlight::ScrollbarSegment::Both});
             }
         }
     }
