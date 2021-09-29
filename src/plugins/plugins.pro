@@ -19,6 +19,7 @@ SUBDIRS   = \
     perforce \
     subversion \
     git \
+    gitscrollbarhighlighter \
     cvs \
     qtsupport \
     qmakeprojectmanager \
