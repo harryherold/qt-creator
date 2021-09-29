@@ -53,6 +53,8 @@ public:
 
 private:
     std::unique_ptr<GitScrollBarHighlighterPrivate> d;
+    QAction * m_gotoNextLine;
+    QAction * m_gotoPreviousLine;
 };
 
 } // namespace Internal
