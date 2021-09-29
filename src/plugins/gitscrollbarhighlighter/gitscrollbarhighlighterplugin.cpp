@@ -161,6 +161,17 @@ public:
         return m_changedFiles.contains(filePath);
     }
 
+    std::optional<int> findLineIf(const Utils::FilePath & filePath, std::function<bool(int line)> isWantedLine) const
+    {
+        const auto & lines = m_changedFiles.value(filePath);
+        for (auto iter = lines.constBegin(), end = lines.constEnd(); iter != end; ++iter) {
+            if (isWantedLine(iter.key())) {
+                return iter.key();
+            }
+        }
+        return std::nullopt;
+    }
+
     void updateChangedLinesOfFile(const Utils::FilePath & filePath)
     {
         char * paths[1];
@@ -221,6 +232,11 @@ private:
     GitFileDiffMap m_changedFiles;
 };
 
+enum class MoveDirection {
+    Next,
+    Previous
+};
+
 class GitScrollBarHighlighterPrivate : public QObject
 {
     using GitFileDiffWatcher = QFutureWatcher<void>;
@@ -230,12 +246,17 @@ public:
     GitScrollBarHighlighterPrivate();
     ~GitScrollBarHighlighterPrivate();
 
+public slots:
+    void setScrollbarStyle(Core::IEditor *editor);
+    void gotoUncommitedLine(GitScrollBarHighlighter::Internal::MoveDirection direction) const;
+
 private:
     void updateStatusOfCurrentFile();
     GitRepoMap::iterator findGitRepo(const Utils::FilePath & filePath);
     GitRepoMap::const_iterator cfindGitRepo(const Utils::FilePath & filePath) const;
     void setupDocumentSignals(TextEditor::TextDocument *textDocument);
     void scheduleHighlightUpdate();
+    std::optional<int> currentLineNumber(TextEditor::TextEditorWidget *) const;
 
 private slots:
     void updateHighlightOfCurrentDocument();
@@ -290,6 +311,29 @@ GitScrollBarHighlighterPrivate::GitScrollBarHighlighterPrivate()
             this, &GitScrollBarHighlighterPrivate::updateHighlightOfCurrentDocument);
 }
 
+std::optional<int> GitScrollBarHighlighterPrivate::currentLineNumber(TextEditor::TextEditorWidget * textEditorWidget) const
+{
+    if (textEditorWidget != nullptr) {
+
+        QTextCursor cursor = textEditorWidget->textCursor();
+        cursor.movePosition(QTextCursor::StartOfLine);
+
+        int lines = 1;
+        while(cursor.positionInBlock()>0) {
+            cursor.movePosition(QTextCursor::Up);
+            lines++;
+        }
+        QTextBlock block = cursor.block().previous();
+
+        while(block.isValid()) {
+            lines += block.lineCount();
+            block = block.previous();
+        }
+        return lines;
+    }
+    return std::nullopt;
+}
+
 void GitScrollBarHighlighterPrivate::setScrollbarStyle(Core::IEditor* editor)
 {
     if (auto * textEditorWidget = qobject_cast<TextEditor::TextEditorWidget *>(editor->widget())) {
@@ -299,6 +343,32 @@ void GitScrollBarHighlighterPrivate::setScrollbarStyle(Core::IEditor* editor)
         }
     }
 }
+
+void GitScrollBarHighlighterPrivate::gotoUncommitedLine(MoveDirection direction) const
+{
+    auto * editorManager = Core::EditorManager::instance();
+    if (editorManager != nullptr) {
+        auto * textEditorWidget = qobject_cast<TextEditor::TextEditorWidget *>(editorManager->currentEditor()->widget());
+        auto currentLine = currentLineNumber(textEditorWidget);
+        if (currentLine) {
+            const auto & currentFilePath = m_currentDocument->filePath();
+            auto repoIter = cfindGitRepo(currentFilePath);
+            if (repoIter != m_repoMap.cend()) {
+                const int cline = currentLine.value();
+                auto nextLine = repoIter->second.findLineIf(currentFilePath, [cline, direction] (int line) -> bool {
+                    if (direction == MoveDirection::Next) {
+                        return line > cline;
+                    }
+                    return line < cline;
+                });
+                if (nextLine) {
+                    textEditorWidget->gotoLine(nextLine.value(), 0);
+                }
+            }
+        }
+    }
+}
+
 void GitScrollBarHighlighterPrivate::updateStatusOfCurrentFile()
 {
     if (m_updateWatcher.isRunning() || m_currentDocument == nullptr) {
@@ -466,6 +536,25 @@ bool GitScrollBarHighlighterPlugin::initialize(const QStringList &arguments, QSt
 
     connect(Core::EditorManager::instance(), &Core::EditorManager::editorCreated, this, [=] (Core::IEditor *editor) {
         d->setScrollbarStyle(editor);
+    });
+
+    Core::ActionContainer *menu = Core::ActionManager::createMenu("GitScrollBarHighlighter.Menu");
+    menu->menu()->setTitle(tr("&GitScrollBarHighlighter"));
+
+    m_gotoNextLine = new QAction(tr("Goto &Next uncommited line."), this);
+    Core::Command *nextCmd
+            = Core::ActionManager::registerAction(m_gotoNextLine, "GitScrollBarHighlighter.GotoNextUncommitedLine");
+    menu->addAction(nextCmd);
+    connect(m_gotoNextLine, &QAction::triggered, this, [=] (bool) {
+        d->gotoUncommitedLine(MoveDirection::Next);
+    });
+
+    m_gotoPreviousLine = new QAction(tr("Goto &Previous uncommited line."), this);
+    Core::Command *previousCmd
+            = Core::ActionManager::registerAction(m_gotoPreviousLine, "GitScrollBarHighlighter.GotoPreviousUncommitedLine");
+    menu->addAction(previousCmd);
+    connect(m_gotoPreviousLine, &QAction::triggered, this, [=] (bool) {
+        d->gotoUncommitedLine(MoveDirection::Previous);
     });
     return true;
 }
