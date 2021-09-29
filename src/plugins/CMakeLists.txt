@@ -57,6 +57,7 @@ add_subdirectory(scxmleditor)
 add_subdirectory(subversion)
 add_subdirectory(compilationdatabaseprojectmanager)
 add_subdirectory(languageclient)
+add_subdirectory(gitscrollbarhighlighter)
 
 # Level 6:
 add_subdirectory(cmakeprojectmanager)
