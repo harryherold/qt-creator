@@ -57,6 +57,7 @@
 
 #include <type_traits>
 #include <optional>
+#include <unordered_map>
 
 extern "C" {
     #include <git2.h>
@@ -354,7 +355,7 @@ void GitScrollBarHighlighterPrivate::gotoUncommitedLine(MoveDirection direction)
             const auto & currentFilePath = m_currentDocument->filePath();
             auto repoIter = cfindGitRepo(currentFilePath);
             if (repoIter != m_repoMap.cend()) {
-                const int cline = currentLine.value();
+                const int cline = *currentLine;
                 auto nextLine = repoIter->second.findLineIf(currentFilePath, [cline, direction] (int line) -> bool {
                     if (direction == MoveDirection::Next) {
                         return line > cline;
@@ -362,7 +363,7 @@ void GitScrollBarHighlighterPrivate::gotoUncommitedLine(MoveDirection direction)
                     return line < cline;
                 });
                 if (nextLine) {
-                    textEditorWidget->gotoLine(nextLine.value(), 0);
+                    textEditorWidget->gotoLine(*nextLine, 0);
                 }
             }
         }
