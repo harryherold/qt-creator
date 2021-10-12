@@ -498,17 +498,17 @@ void GitScrollBarHighlighterPrivate::updateHighlightOfCurrentDocument()
                         if (wasAdded && wasDeleted) {
                             highlighterController->addHighlight(
                                 {TextEditor::Constants::SCROLL_BAR_CHANGED_LINES, iter.key() - 1,
-                                 Utils::Theme::PaletteHighlight, Highlight::HighPriority, ScrollbarSegment::Left});
+                                 Utils::Theme::TextEditor_AddedAndDeletedLine_ScrollBarColor, Highlight::HighPriority, ScrollbarSegment::Left});
                         }
                         else if(wasAdded) {
                             highlighterController->addHighlight(
                                 {TextEditor::Constants::SCROLL_BAR_CHANGED_LINES, iter.key() - 1,
-                                 Utils::Theme::ProgressBarColorFinished, Highlight::HighPriority, ScrollbarSegment::Left});
+                                 Utils::Theme::TextEditor_AddedLine_ScrollBarColor, Highlight::HighPriority, ScrollbarSegment::Left});
                         }
                         else {
                             highlighterController->addHighlight(
                                 {TextEditor::Constants::SCROLL_BAR_CHANGED_LINES, iter.key() - 1,
-                                 Utils::Theme::ProgressBarColorError, Highlight::HighPriority, ScrollbarSegment::Left});
+                                 Utils::Theme::TextEditor_DeletedLine_ScrollBarColor, Highlight::HighPriority, ScrollbarSegment::Left});
                         }
                     }
                 }
@@ -516,7 +516,6 @@ void GitScrollBarHighlighterPrivate::updateHighlightOfCurrentDocument()
         }
     }
 }
-
 
 GitScrollBarHighlighterPlugin::GitScrollBarHighlighterPlugin()
 {
