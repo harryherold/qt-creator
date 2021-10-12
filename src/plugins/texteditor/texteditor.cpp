@@ -89,6 +89,8 @@
 #include <utils/tooltip/tooltip.h>
 #include <utils/uncommentselection.h>
 
+#include <gitscrollbarhighlighter/gitscrollbarhighlighterplugin.h>
+
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QClipboard>
@@ -153,6 +155,7 @@
 
 using namespace Core;
 using namespace Utils;
+using namespace GitScrollBarHighlighter::Internal;
 
 namespace TextEditor {
 
@@ -824,6 +827,7 @@ public:
     };
     using UndoMultiCursor = QList<UndoCursor>;
     QStack<UndoMultiCursor> m_undoCursorStack;
+    LineNumberClassMap m_changedLineMap;
 };
 
 class TextEditorWidgetFind : public BaseTextFind
@@ -1209,6 +1213,12 @@ void TextEditorWidgetPrivate::ctor(const QSharedPointer<TextDocument> &doc)
             q, &TextEditorWidget::updateTextLineEndingLabel);
     q->updateTextLineEndingLabel();
 
+    connect(m_document.data(), &IDocument::vcsStatusChnaged, this, [&] (LineNumberClassMap m) {
+        if (m_changedLineMap != m) {
+            m_changedLineMap.clear();
+            m_changedLineMap.insert(m);
+        }
+    });
 }
 
 TextEditorWidget::~TextEditorWidget()
@@ -4955,17 +4965,51 @@ void TextEditorWidgetPrivate::paintCodeFolding(QPainter &painter,
 
 }
 
+ChangeClass operator&(ChangeClass a, ChangeClass b)
+{
+    auto tmp = static_cast<std::underlying_type<ChangeClass>::type>(a)
+    & static_cast<std::underlying_type<ChangeClass>::type>(b);
+    return static_cast<ChangeClass>(tmp);
+}
+
 void TextEditorWidgetPrivate::paintRevisionMarker(QPainter &painter,
                                                   const ExtraAreaPaintEventData &data,
                                                   const QRectF &blockBoundingRect) const
 {
+    auto getColor = [] (ChangeClass c) -> QColor {
+        auto wasAdded = (c & ChangeClass::Added) == ChangeClass::Added;
+        auto wasDeleted = (c & ChangeClass::Deleted) == ChangeClass::Deleted;
+        if (wasAdded && wasDeleted) {
+            return creatorTheme()->color(Theme::TextEditor_AddedAndDeletedLine_ScrollBarColor);
+        }
+        else if (wasAdded) {
+            return creatorTheme()->color(Theme::TextEditor_AddedLine_ScrollBarColor);
+        }
+        return creatorTheme()->color(Theme::TextEditor_DeletedLine_ScrollBarColor);
+    };
+    // TODO improve condition logik
+    const int lineNumber = data.block.firstLineNumber() + 1;
     if (m_revisionsVisible && data.block.revision() != data.documentLayout->lastSaveRevision) {
         painter.save();
         painter.setRenderHint(QPainter::Antialiasing, false);
-        if (data.block.revision() < 0)
-            painter.setPen(QPen(Qt::darkGreen, 2));
-        else
+        if (m_changedLineMap.contains(lineNumber)) {
+            painter.setPen(QPen(getColor(m_changedLineMap.value(lineNumber)), 2));
+        }
+        else if (data.block.revision() < 0) {
+            painter.restore();
+            return;
+        }
+        else {
             painter.setPen(QPen(Qt::red, 2));
+        }
+        painter.drawLine(data.extraAreaWidth - 1, int(blockBoundingRect.top()),
+                         data.extraAreaWidth - 1, int(blockBoundingRect.bottom()) - 1);
+        painter.restore();
+    }
+    else if (m_changedLineMap.contains(lineNumber)){
+        painter.save();
+        painter.setRenderHint(QPainter::Antialiasing, false);
+        painter.setPen(QPen(getColor(m_changedLineMap.value(lineNumber)), 2));
         painter.drawLine(data.extraAreaWidth - 1, int(blockBoundingRect.top()),
                          data.extraAreaWidth - 1, int(blockBoundingRect.bottom()) - 1);
         painter.restore();

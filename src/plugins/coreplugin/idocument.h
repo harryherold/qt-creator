@@ -43,6 +43,13 @@ namespace Internal {
 class IDocumentPrivate;
 }
 
+enum class ChangeClass {
+    Invalid = 0,
+    Added = 1,
+    Deleted = 2,
+};
+using LineNumberClassMap =QMap<int, ChangeClass>;
+
 class CORE_EXPORT IDocument : public QObject
 {
     Q_OBJECT
@@ -147,6 +154,8 @@ signals:
     void reloadFinished(bool success);
 
     void filePathChanged(const Utils::FilePath &oldName, const Utils::FilePath &newName);
+
+    void vcsStatusChnaged(LineNumberClassMap);
 
 private:
     Internal::IDocumentPrivate *d;
