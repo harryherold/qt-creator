@@ -70,13 +70,13 @@ namespace Internal {
 using namespace ProjectExplorer;
 using namespace Core;
 
-enum class ChangeClass {
-    Invalid = 0,
-    Added = 1,
-    Deleted = 2,
-};
+// enum class ChangeClass {
+//     Invalid = 0,
+//     Added = 1,
+//     Deleted = 2,
+// };
 
-using LineNumberClassMap =QMap<int, ChangeClass>;
+// using LineNumberClassMap =QMap<int, ChangeClass>;
 using ScrollbarSegment = Highlight::ScrollbarSegment;
 
 ChangeClass operator|( ChangeClass a, ChangeClass b)
@@ -244,7 +244,7 @@ class GitScrollBarHighlighterPrivate : public QObject
     using GitRepoMap = std::unordered_map<Utils::FilePath, GitRepo>;
 
 public:
-    GitScrollBarHighlighterPrivate();
+    GitScrollBarHighlighterPrivate(GitScrollBarHighlighterPlugin * plugin);
     ~GitScrollBarHighlighterPrivate();
 
 public slots:
@@ -270,9 +270,11 @@ private:
     GitRepoMap m_repoMap;
     GitFileDiffWatcher m_updateWatcher;
     bool m_updateScheduled;
+    GitScrollBarHighlighterPlugin * p;
 };
 
-GitScrollBarHighlighterPrivate::GitScrollBarHighlighterPrivate()
+GitScrollBarHighlighterPrivate::GitScrollBarHighlighterPrivate(GitScrollBarHighlighterPlugin * plugin)
+    :p(plugin)
 {
     QObject::connect(SessionManager::instance(), &SessionManager::projectAdded,
             this, [&] (ProjectExplorer::Project *project) {
@@ -489,6 +491,9 @@ void GitScrollBarHighlighterPrivate::updateHighlightOfCurrentDocument()
                     auto * textDocument = qobject_cast<TextEditor::TextDocument *>(m_currentDocument);
                     auto lineCount = textDocument->document()->lineCount();
 
+                    // TODO put in seperate function
+                    emit m_currentDocument->vcsStatusChnaged(changedLines);
+
                     for (auto iter = changedLines.cbegin(); iter != changedLines.cend(); ++iter) {
                         auto wasAdded = (iter.value() & ChangeClass::Added) == ChangeClass::Added;
                         auto wasDeleted = (iter.value() & ChangeClass::Deleted) == ChangeClass::Deleted;
@@ -532,7 +537,7 @@ bool GitScrollBarHighlighterPlugin::initialize(const QStringList &arguments, QSt
     Q_UNUSED(arguments)
     Q_UNUSED(errorMessage)
     git_libgit2_init();
-    d = std::make_unique<GitScrollBarHighlighterPrivate>();
+    d = std::make_unique<GitScrollBarHighlighterPrivate>(this);
 
     connect(Core::EditorManager::instance(), &Core::EditorManager::editorCreated, this, [=] (Core::IEditor *editor) {
         d->setScrollbarStyle(editor);
