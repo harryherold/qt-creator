@@ -260,7 +260,8 @@ private:
     std::optional<int> currentLineNumber(TextEditor::TextEditorWidget *) const;
 
 private slots:
-    void updateHighlightOfCurrentDocument();
+    void update();
+    void updateScrollbarHighlight(const LineNumberClassMap&);
     void setCurrentDocument(Core::IEditor *editor);
     void handleClosedDocument(Core::IDocument *document);
 
@@ -310,8 +311,7 @@ GitScrollBarHighlighterPrivate::GitScrollBarHighlighterPrivate(GitScrollBarHighl
             updateStatusOfCurrentFile();
         }
     });
-    QObject::connect(&m_updateWatcher, &GitFileDiffWatcher::finished,
-            this, &GitScrollBarHighlighterPrivate::updateHighlightOfCurrentDocument);
+    QObject::connect(&m_updateWatcher, &GitFileDiffWatcher::finished, this, &GitScrollBarHighlighterPrivate::update);
 }
 
 std::optional<int> GitScrollBarHighlighterPrivate::currentLineNumber(TextEditor::TextEditorWidget * textEditorWidget) const
@@ -401,13 +401,14 @@ void GitScrollBarHighlighterPrivate::setCurrentDocument(Core::IEditor *editor)
         QObject::connect(m_currentDocument, &QObject::destroyed, this, [=] () {
             m_currentDocument = nullptr;
         });
+        emit m_currentDocument->vcsStatusProviderInitialized();
         if (! repoIterator->second.hasFile(m_currentDocument->filePath())) {
             // NOTE in this case the file is opened the first time
             setupDocumentSignals(qobject_cast<TextEditor::TextDocument *>(editor->document()));
             updateStatusOfCurrentFile();
         }
         else {
-            updateHighlightOfCurrentDocument();
+            update();
         }
     }
 }
@@ -470,52 +471,55 @@ void GitScrollBarHighlighterPrivate::scheduleHighlightUpdate()
         return;
 
     m_updateScheduled = true;
-    QMetaObject::invokeMethod(this, &GitScrollBarHighlighterPrivate::updateHighlightOfCurrentDocument,
+    QMetaObject::invokeMethod(this, &GitScrollBarHighlighterPrivate::update,
                               Qt::QueuedConnection);
 }
 
-void GitScrollBarHighlighterPrivate::updateHighlightOfCurrentDocument()
+void GitScrollBarHighlighterPrivate::update()
 {
     m_updateScheduled = false;
     auto result = cfindGitRepo(m_currentDocument->filePath());
     if (result != m_repoMap.cend()) {
-        auto * editorManager = Core::EditorManager::instance();
-        if (editorManager != nullptr && editorManager->currentEditor() != nullptr) {
-            auto * currentEditor = editorManager->currentEditor();
-            if (auto * textEditorWidget = qobject_cast<TextEditor::TextEditorWidget *>(currentEditor->widget())) {
-                auto * highlighterController = textEditorWidget->highlightScrollBarController();
-                if (highlighterController != nullptr) {
-                    highlighterController->removeHighlights(TextEditor::Constants::SCROLL_BAR_CHANGED_LINES);
+        auto changedLines = result->second.getChangedLinesOfFile(m_currentDocument->filePath());
+        updateScrollbarHighlight(changedLines);
+        emit m_currentDocument->vcsStatusChanged(changedLines);
+    }
+}
 
-                    auto changedLines = result->second.getChangedLinesOfFile(m_currentDocument->filePath());
-                    auto * textDocument = qobject_cast<TextEditor::TextDocument *>(m_currentDocument);
-                    auto lineCount = textDocument->document()->lineCount();
+void GitScrollBarHighlighterPrivate::updateScrollbarHighlight(const LineNumberClassMap& changedLines)
+{
+    auto * editorManager = Core::EditorManager::instance();
+    if (editorManager != nullptr && editorManager->currentEditor() != nullptr) {
+        auto * currentEditor = editorManager->currentEditor();
+        if (auto * textEditorWidget = qobject_cast<TextEditor::TextEditorWidget *>(currentEditor->widget())) {
+            auto * highlighterController = textEditorWidget->highlightScrollBarController();
+            if (highlighterController != nullptr) {
+                auto * textDocument = qobject_cast<TextEditor::TextDocument *>(m_currentDocument);
+                auto lineCount = textDocument->document()->lineCount();
 
-                    // TODO put in seperate function
-                    emit m_currentDocument->vcsStatusChnaged(changedLines);
+                highlighterController->removeHighlights(TextEditor::Constants::SCROLL_BAR_CHANGED_LINES);
 
-                    for (auto iter = changedLines.cbegin(); iter != changedLines.cend(); ++iter) {
-                        auto wasAdded = (iter.value() & ChangeClass::Added) == ChangeClass::Added;
-                        auto wasDeleted = (iter.value() & ChangeClass::Deleted) == ChangeClass::Deleted;
+                for (auto iter = changedLines.cbegin(); iter != changedLines.cend(); ++iter) {
+                    auto wasAdded = (iter.value() & ChangeClass::Added) == ChangeClass::Added;
+                    auto wasDeleted = (iter.value() & ChangeClass::Deleted) == ChangeClass::Deleted;
 
-                        if (iter.key() > lineCount) {
-                            continue;
-                        }
-                        if (wasAdded && wasDeleted) {
-                            highlighterController->addHighlight(
-                                {TextEditor::Constants::SCROLL_BAR_CHANGED_LINES, iter.key() - 1,
-                                 Utils::Theme::TextEditor_AddedAndDeletedLine_ScrollBarColor, Highlight::HighPriority, ScrollbarSegment::Left});
-                        }
-                        else if(wasAdded) {
-                            highlighterController->addHighlight(
-                                {TextEditor::Constants::SCROLL_BAR_CHANGED_LINES, iter.key() - 1,
-                                 Utils::Theme::TextEditor_AddedLine_ScrollBarColor, Highlight::HighPriority, ScrollbarSegment::Left});
-                        }
-                        else {
-                            highlighterController->addHighlight(
-                                {TextEditor::Constants::SCROLL_BAR_CHANGED_LINES, iter.key() - 1,
-                                 Utils::Theme::TextEditor_DeletedLine_ScrollBarColor, Highlight::HighPriority, ScrollbarSegment::Left});
-                        }
+                    if (iter.key() > lineCount) {
+                        continue;
+                    }
+                    if (wasAdded && wasDeleted) {
+                        highlighterController->addHighlight(
+                            {TextEditor::Constants::SCROLL_BAR_CHANGED_LINES, iter.key() - 1,
+                             Utils::Theme::TextEditor_AddedAndDeletedLine_ScrollBarColor, Highlight::HighPriority, ScrollbarSegment::Left});
+                    }
+                    else if(wasAdded) {
+                        highlighterController->addHighlight(
+                            {TextEditor::Constants::SCROLL_BAR_CHANGED_LINES, iter.key() - 1,
+                             Utils::Theme::TextEditor_AddedLine_ScrollBarColor, Highlight::HighPriority, ScrollbarSegment::Left});
+                    }
+                    else {
+                        highlighterController->addHighlight(
+                            {TextEditor::Constants::SCROLL_BAR_CHANGED_LINES, iter.key() - 1,
+                             Utils::Theme::TextEditor_DeletedLine_ScrollBarColor, Highlight::HighPriority, ScrollbarSegment::Left});
                     }
                 }
             }
