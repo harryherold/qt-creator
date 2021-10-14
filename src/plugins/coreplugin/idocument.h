@@ -155,7 +155,9 @@ signals:
 
     void filePathChanged(const Utils::FilePath &oldName, const Utils::FilePath &newName);
 
-    void vcsStatusChnaged(LineNumberClassMap);
+    void vcsStatusChanged(LineNumberClassMap);
+
+    void vcsStatusProviderInitialized();
 
 private:
     Internal::IDocumentPrivate *d;
