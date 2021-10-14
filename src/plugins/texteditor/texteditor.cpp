@@ -577,8 +577,12 @@ public:
                         const QRectF &blockBoundingRect) const;
     void paintCodeFolding(QPainter &painter, const ExtraAreaPaintEventData &data,
                           const QRectF &blockBoundingRect) const;
+    void paintMarker(QPainter &painter, const ExtraAreaPaintEventData &data,
+                     const QRectF &blockBoundingRect) const;
     void paintRevisionMarker(QPainter &painter, const ExtraAreaPaintEventData &data,
                              const QRectF &blockBoundingRect) const;
+    void paintVcsMarker(QPainter &painter, const ExtraAreaPaintEventData &data,
+                        const QRectF &blockBoundingRect) const;
 
     void toggleBlockVisible(const QTextBlock &block);
     QRect foldBox();
@@ -828,6 +832,7 @@ public:
     using UndoMultiCursor = QList<UndoCursor>;
     QStack<UndoMultiCursor> m_undoCursorStack;
     LineNumberClassMap m_changedLineMap;
+    bool m_vcsProviderExists = false;
 };
 
 class TextEditorWidgetFind : public BaseTextFind
@@ -1213,11 +1218,15 @@ void TextEditorWidgetPrivate::ctor(const QSharedPointer<TextDocument> &doc)
             q, &TextEditorWidget::updateTextLineEndingLabel);
     q->updateTextLineEndingLabel();
 
-    connect(m_document.data(), &IDocument::vcsStatusChnaged, this, [&] (LineNumberClassMap m) {
+    connect(m_document.data(), &IDocument::vcsStatusChanged, this, [&] (LineNumberClassMap m) {
         if (m_changedLineMap != m) {
             m_changedLineMap.clear();
             m_changedLineMap.insert(m);
         }
+    });
+
+    connect(m_document.data(), &IDocument::vcsStatusProviderInitialized, this, [&] () {
+        m_vcsProviderExists = true;
     });
 }
 
@@ -4976,7 +4985,24 @@ void TextEditorWidgetPrivate::paintRevisionMarker(QPainter &painter,
                                                   const ExtraAreaPaintEventData &data,
                                                   const QRectF &blockBoundingRect) const
 {
-    auto getColor = [] (ChangeClass c) -> QColor {
+    if (m_revisionsVisible && data.block.revision() != data.documentLayout->lastSaveRevision) {
+        painter.save();
+        painter.setRenderHint(QPainter::Antialiasing, false);
+        if (data.block.revision() < 0)
+            painter.setPen(QPen(Qt::darkGreen, 2));
+        else
+            painter.setPen(QPen(Qt::red, 2));
+        painter.drawLine(data.extraAreaWidth - 1, int(blockBoundingRect.top()),
+                         data.extraAreaWidth - 1, int(blockBoundingRect.bottom()) - 1);
+        painter.restore();
+    }
+}
+
+void TextEditorWidgetPrivate::paintVcsMarker(QPainter &painter,
+                                             const ExtraAreaPaintEventData &data,
+                                             const QRectF &blockBoundingRect) const
+{
+    auto mapChangeClassToColor = [] (ChangeClass c) -> QColor {
         auto wasAdded = (c & ChangeClass::Added) == ChangeClass::Added;
         auto wasDeleted = (c & ChangeClass::Deleted) == ChangeClass::Deleted;
         if (wasAdded && wasDeleted) {
@@ -4987,32 +5013,34 @@ void TextEditorWidgetPrivate::paintRevisionMarker(QPainter &painter,
         }
         return creatorTheme()->color(Theme::TextEditor_DeletedLine_ScrollBarColor);
     };
-    // TODO improve condition logik
-    const int lineNumber = data.block.firstLineNumber() + 1;
-    if (m_revisionsVisible && data.block.revision() != data.documentLayout->lastSaveRevision) {
+    auto paintMarker = [&] (const QColor& color) {
         painter.save();
         painter.setRenderHint(QPainter::Antialiasing, false);
-        if (m_changedLineMap.contains(lineNumber)) {
-            painter.setPen(QPen(getColor(m_changedLineMap.value(lineNumber)), 2));
-        }
-        else if (data.block.revision() < 0) {
-            painter.restore();
-            return;
-        }
-        else {
-            painter.setPen(QPen(Qt::red, 2));
-        }
+        painter.setPen(QPen(color, 2));
         painter.drawLine(data.extraAreaWidth - 1, int(blockBoundingRect.top()),
                          data.extraAreaWidth - 1, int(blockBoundingRect.bottom()) - 1);
         painter.restore();
+    };
+    const int lineNumber = data.block.firstLineNumber() + 1;
+    if (m_revisionsVisible &&
+        data.block.revision() != data.documentLayout->lastSaveRevision &&
+        data.block.revision() >= 0) {
+        paintMarker(Qt::red);
     }
     else if (m_changedLineMap.contains(lineNumber)){
-        painter.save();
-        painter.setRenderHint(QPainter::Antialiasing, false);
-        painter.setPen(QPen(getColor(m_changedLineMap.value(lineNumber)), 2));
-        painter.drawLine(data.extraAreaWidth - 1, int(blockBoundingRect.top()),
-                         data.extraAreaWidth - 1, int(blockBoundingRect.bottom()) - 1);
-        painter.restore();
+        paintMarker(mapChangeClassToColor(m_changedLineMap.value(lineNumber)));
+    }
+}
+
+void TextEditorWidgetPrivate::paintMarker(QPainter &painter,
+                                          const ExtraAreaPaintEventData &data,
+                                          const QRectF &blockBoundingRect) const
+{
+    if (m_vcsProviderExists) {
+        paintVcsMarker(painter, data, blockBoundingRect);
+    }
+    else {
+        paintRevisionMarker(painter, data, blockBoundingRect);
     }
 }
 
@@ -5046,7 +5074,7 @@ void TextEditorWidget::extraAreaPaintEvent(QPaintEvent *e)
                 painter.restore();
             }
 
-            d->paintRevisionMarker(painter, data, boundingRect);
+            d->paintMarker(painter, data, boundingRect);
         }
 
         offset.ry() += boundingRect.height();
