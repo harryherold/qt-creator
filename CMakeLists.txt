@@ -147,12 +147,18 @@ else()
     get_filename_component(_elfutils_path ${ELFUTILS_INCLUDE_DIR} DIRECTORY)
     set(_elfutils_arg "--elfutils \"${_elfutils_path}\"")
   endif()
+  set(_libgit2_arg)
+  if (LIBGIT2_INCLUDE_PATH)
+    get_filename_component(_libgit2_path ${LIBGIT2_INCLUDE_PATH} DIRECTORY)
+    set(_libgit2_arg "--libgit2 \"${_libgit2_path}\"")
+  endif()
   install(CODE "
       execute_process(COMMAND
         \"${PYTHON_EXECUTABLE}\"
         \"${CMAKE_CURRENT_LIST_DIR}/scripts/deployqt.py\"
         ${_llvm_arg}
         ${_elfutils_arg}
+        ${_libgit2_arg}
         \"\${CMAKE_INSTALL_PREFIX}/${IDE_APP_PATH}/${IDE_APP_TARGET}\"
         \"${_qmake_binary}\"
         COMMAND_ECHO STDOUT
