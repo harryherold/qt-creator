@@ -89,6 +89,8 @@
 #include <utils/tooltip/tooltip.h>
 #include <utils/uncommentselection.h>
 
+#include <gitscrollbarhighlighter/gitscrollbarhighlighterplugin.h>
+
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QClipboard>
@@ -153,6 +155,7 @@
 
 using namespace Core;
 using namespace Utils;
+using namespace GitScrollBarHighlighter::Internal;
 
 namespace TextEditor {
 
@@ -553,8 +556,12 @@ public:
                         const QRectF &blockBoundingRect) const;
     void paintCodeFolding(QPainter &painter, const ExtraAreaPaintEventData &data,
                           const QRectF &blockBoundingRect) const;
+    void paintMarker(QPainter &painter, const ExtraAreaPaintEventData &data,
+                     const QRectF &blockBoundingRect) const;
     void paintRevisionMarker(QPainter &painter, const ExtraAreaPaintEventData &data,
                              const QRectF &blockBoundingRect) const;
+    void paintVcsMarker(QPainter &painter, const ExtraAreaPaintEventData &data,
+                        const QRectF &blockBoundingRect) const;
 
     void toggleBlockVisible(const QTextBlock &block);
     QRect foldBox();
@@ -789,6 +796,8 @@ public:
     };
     using UndoMultiCursor = QList<UndoCursor>;
     QStack<UndoMultiCursor> m_undoCursorStack;
+    LineNumberClassMap m_changedLineMap;
+    bool m_vcsProviderExists = false;
 };
 
 TextEditorWidgetPrivate::TextEditorWidgetPrivate(TextEditorWidget *parent)
@@ -1105,6 +1114,16 @@ void TextEditorWidgetPrivate::ctor(const QSharedPointer<TextDocument> &doc)
             q, &TextEditorWidget::updateTextLineEndingLabel);
     q->updateTextLineEndingLabel();
 
+    connect(m_document.data(), &IDocument::vcsStatusChanged, this, [&] (LineNumberClassMap m) {
+        if (m_changedLineMap != m) {
+            m_changedLineMap.clear();
+            m_changedLineMap.insert(m);
+        }
+    });
+
+    connect(m_document.data(), &IDocument::vcsStatusProviderInitialized, this, [&] () {
+        m_vcsProviderExists = true;
+    });
 }
 
 TextEditorWidget::~TextEditorWidget()
@@ -4734,6 +4753,13 @@ void TextEditorWidgetPrivate::paintCodeFolding(QPainter &painter,
 
 }
 
+ChangeClass operator&(ChangeClass a, ChangeClass b)
+{
+    auto tmp = static_cast<std::underlying_type<ChangeClass>::type>(a)
+    & static_cast<std::underlying_type<ChangeClass>::type>(b);
+    return static_cast<ChangeClass>(tmp);
+}
+
 void TextEditorWidgetPrivate::paintRevisionMarker(QPainter &painter,
                                                   const ExtraAreaPaintEventData &data,
                                                   const QRectF &blockBoundingRect) const
@@ -4748,6 +4774,52 @@ void TextEditorWidgetPrivate::paintRevisionMarker(QPainter &painter,
         painter.drawLine(data.extraAreaWidth - 1, int(blockBoundingRect.top()),
                          data.extraAreaWidth - 1, int(blockBoundingRect.bottom()) - 1);
         painter.restore();
+    }
+}
+
+void TextEditorWidgetPrivate::paintVcsMarker(QPainter &painter,
+                                             const ExtraAreaPaintEventData &data,
+                                             const QRectF &blockBoundingRect) const
+{
+    auto mapChangeClassToColor = [] (ChangeClass c) -> QColor {
+        auto wasAdded = (c & ChangeClass::Added) == ChangeClass::Added;
+        auto wasDeleted = (c & ChangeClass::Deleted) == ChangeClass::Deleted;
+        if (wasAdded && wasDeleted) {
+            return creatorTheme()->color(Theme::TextEditor_AddedAndDeletedLine_ScrollBarColor);
+        }
+        else if (wasAdded) {
+            return creatorTheme()->color(Theme::TextEditor_AddedLine_ScrollBarColor);
+        }
+        return creatorTheme()->color(Theme::TextEditor_DeletedLine_ScrollBarColor);
+    };
+    auto paintMarker = [&] (const QColor& color) {
+        painter.save();
+        painter.setRenderHint(QPainter::Antialiasing, false);
+        painter.setPen(QPen(color, 2));
+        painter.drawLine(data.extraAreaWidth - 1, int(blockBoundingRect.top()),
+                         data.extraAreaWidth - 1, int(blockBoundingRect.bottom()) - 1);
+        painter.restore();
+    };
+    const int lineNumber = data.block.firstLineNumber() + 1;
+    if (m_revisionsVisible &&
+        data.block.revision() != data.documentLayout->lastSaveRevision &&
+        data.block.revision() >= 0) {
+        paintMarker(Qt::red);
+    }
+    else if (m_changedLineMap.contains(lineNumber)){
+        paintMarker(mapChangeClassToColor(m_changedLineMap.value(lineNumber)));
+    }
+}
+
+void TextEditorWidgetPrivate::paintMarker(QPainter &painter,
+                                          const ExtraAreaPaintEventData &data,
+                                          const QRectF &blockBoundingRect) const
+{
+    if (m_vcsProviderExists) {
+        paintVcsMarker(painter, data, blockBoundingRect);
+    }
+    else {
+        paintRevisionMarker(painter, data, blockBoundingRect);
     }
 }
 
@@ -4781,7 +4853,7 @@ void TextEditorWidget::extraAreaPaintEvent(QPaintEvent *e)
                 painter.restore();
             }
 
-            d->paintRevisionMarker(painter, data, boundingRect);
+            d->paintMarker(painter, data, boundingRect);
         }
 
         offset.ry() += boundingRect.height();
@@ -4985,7 +5057,8 @@ void TextEditorWidgetPrivate::updateCurrentLineInScrollbar()
                         layout->lineForTextPosition(tc.positionInBlock()).lineNumber();
                 m_highlightScrollBarController->addHighlight({Constants::SCROLL_BAR_CURRENT_LINE, pos,
                                                               Theme::TextEditor_CurrentLine_ScrollBarColor,
-                                                              Highlight::HighestPriority});
+                                                              Highlight::HighestPriority,
+                                                              Highlight::ScrollbarSegment::Both});
             }
         }
     }
