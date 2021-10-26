@@ -164,7 +164,8 @@ HEADERS += projectexplorer.h \
     treescanner.h \
     rawprojectpart.h \
     simpleprojectwizard.h \
-    filesinallprojectsfind.h
+    filesinallprojectsfind.h \
+    projectvcsstatus.h
 
 SOURCES += projectexplorer.cpp \
     abi.cpp \
@@ -311,7 +312,8 @@ SOURCES += projectexplorer.cpp \
     treescanner.cpp \
     rawprojectpart.cpp \
     simpleprojectwizard.cpp \
-    filesinallprojectsfind.cpp
+    filesinallprojectsfind.cpp \
+    projectvcsstatus.cpp
 
 FORMS += \
     editorsettingspropertiespage.ui \
