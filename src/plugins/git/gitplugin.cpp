@@ -1928,7 +1928,7 @@ Core::ChangeSets GitPluginPrivate::localChanges(const Utils::FilePath &directory
         QTextStream stream(&output);
         QString line;
         while(stream.readLineInto(&line)) {
-            const auto & classFilePair = line.trimmed().split(QRegExp("\\s+"));
+            const auto & classFilePair = line.trimmed().split(QRegularExpression("\\s+"));
             Q_ASSERT(classFilePair.count() == 2);
             if (classFilePair[0].contains('D') || classFilePair[0].contains('?')) {
                     untrackedChanges.insert(directory.pathAppended(classFilePair[1].trimmed()).toString());
