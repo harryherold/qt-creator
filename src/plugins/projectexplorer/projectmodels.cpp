@@ -214,10 +214,17 @@ QVariant FlatModel::data(const QModelIndex &index, int role) const
     const Project * const project = containerNode ? containerNode->project() : nullptr;
     const Target * const target = project ? project->activeTarget() : nullptr;
     const BuildSystem * const bs = target ? target->buildSystem() : nullptr;
+    ProjectVcsStatus * projectVcsStatus = ProjectVcsStatus::instance();
 
     switch (role) {
-    case Qt::DisplayRole:
-        return node->displayName();
+    case Qt::DisplayRole: {
+        QString displayName = node->displayName();
+        auto result = projectVcsStatus->hasVcsStatusChanges(nodeForIndex(index));
+        if (result) {
+               displayName += "*";
+        }
+        return displayName;
+    }
     case Qt::EditRole:
         return node->filePath().fileName();
     case Qt::ToolTipRole: {
