@@ -441,235 +441,233 @@ jobs:
           endif()
           math(EXPR artifacts_length "${artifacts_length} - 1")
 
-
           foreach(idx RANGE 0 ${artifacts_length})
-            message(STATUS "Index is ${idx} page id ${page_id} ${artifacts_length}")
             string(JSON artifact_js GET "${artifacts_json}" "artifacts" ${idx})
-          #   string(JSON name GET "${artifact_js}" "name")
-          #   if ("${name}" STREQUAL "${{ steps.ccache.outputs.archive_name }}")
-          #     string(JSON download_url GET "${artifact_js}" "archive_download_url")
+            string(JSON name GET "${artifact_js}" "name")
+            if ("${name}" STREQUAL "${{ steps.ccache.outputs.archive_name }}")
+              string(JSON download_url GET "${artifact_js}" "archive_download_url")
 
-          #     foreach(retry RANGE 10)
-          #       file(DOWNLOAD "${download_url}"
-          #         "${{ steps.ccache.outputs.archive_name }}.zip"
-          #         NETRC_FILE "$ENV{GITHUB_WORKSPACE}/netrc.txt"
-          #         NETRC REQUIRED
-          #         SHOW_PROGRESS)
-          #       file(SIZE "${{ steps.ccache.outputs.archive_name }}.zip" fileSize)
-          #       if (fileSize GREATER 0)
-          #         break()
-          #       endif()
-          #     endforeach()
+              foreach(retry RANGE 10)
+                file(DOWNLOAD "${download_url}"
+                  "${{ steps.ccache.outputs.archive_name }}.zip"
+                  NETRC_FILE "$ENV{GITHUB_WORKSPACE}/netrc.txt"
+                  NETRC REQUIRED
+                  SHOW_PROGRESS)
+                file(SIZE "${{ steps.ccache.outputs.archive_name }}.zip" fileSize)
+                if (fileSize GREATER 0)
+                  break()
+                endif()
+              endforeach()
 
-          #     execute_process(COMMAND ${CMAKE_COMMAND} -E tar xvf "${{ steps.ccache.outputs.archive_name }}.zip")
-          #     file(MAKE_DIRECTORY .ccache)
-          #     execute_process(COMMAND ${CMAKE_COMMAND} -E tar xf "../${{ steps.ccache.outputs.archive_name }}.tar" WORKING_DIRECTORY .ccache)
+              execute_process(COMMAND ${CMAKE_COMMAND} -E tar xvf "${{ steps.ccache.outputs.archive_name }}.zip")
+              file(MAKE_DIRECTORY .ccache)
+              execute_process(COMMAND ${CMAKE_COMMAND} -E tar xf "../${{ steps.ccache.outputs.archive_name }}.tar" WORKING_DIRECTORY .ccache)
 
-          #     return()
-          #   endif()
+              return()
+            endif()
           endforeach()
         endforeach()
 
-    # - name: Build
-    #   shell: cmake -P {0}
-    #   run: |
-    #     set(ENV{CC} ${{ matrix.config.cc }})
-    #     set(ENV{CXX} ${{ matrix.config.cxx }})
-    #     set(ENV{MACOSX_DEPLOYMENT_TARGET} "10.13")
+    - name: Build
+      shell: cmake -P {0}
+      run: |
+        set(ENV{CC} ${{ matrix.config.cc }})
+        set(ENV{CXX} ${{ matrix.config.cxx }})
+        set(ENV{MACOSX_DEPLOYMENT_TARGET} "10.13")
 
-    #     if ("${{ runner.os }}" STREQUAL "Windows" AND NOT "x${{ matrix.config.environment_script }}" STREQUAL "x")
-    #       execute_process(
-    #         COMMAND "${{ matrix.config.environment_script }}" && set
-    #         OUTPUT_FILE environment_script_output.txt
-    #       )
-    #       file(STRINGS environment_script_output.txt output_lines)
-    #       foreach(line IN LISTS output_lines)
-    #         if (line MATCHES "^([a-zA-Z0-9_-]+)=(.*)$")
-    #           set(ENV{${CMAKE_MATCH_1}} "${CMAKE_MATCH_2}")
-    #         endif()
-    #       endforeach()
-    #     endif()
+        if ("${{ runner.os }}" STREQUAL "Windows" AND NOT "x${{ matrix.config.environment_script }}" STREQUAL "x")
+          execute_process(
+            COMMAND "${{ matrix.config.environment_script }}" && set
+            OUTPUT_FILE environment_script_output.txt
+          )
+          file(STRINGS environment_script_output.txt output_lines)
+          foreach(line IN LISTS output_lines)
+            if (line MATCHES "^([a-zA-Z0-9_-]+)=(.*)$")
+              set(ENV{${CMAKE_MATCH_1}} "${CMAKE_MATCH_2}")
+            endif()
+          endforeach()
+        endif()
 
-    #     set(ENV{NINJA_STATUS} "[%f/%t %o/sec] ")
+        set(ENV{NINJA_STATUS} "[%f/%t %o/sec] ")
 
-    #     file(TO_CMAKE_PATH "$ENV{GITHUB_WORKSPACE}" ccache_basedir)
-    #     set(ENV{CCACHE_BASEDIR} "${ccache_basedir}")
-    #     set(ENV{CCACHE_DIR} "${ccache_basedir}/.ccache")
-    #     set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros")
-    #     set(ENV{CCACHE_COMPRESS} "true")
-    #     set(ENV{CCACHE_COMPRESSLEVEL} "9")
-    #     set(ENV{CCACHE_MAXSIZE} "400M")
-    #     if ("${{ matrix.config.cxx }}" STREQUAL "cl")
-    #       set(ENV{CCACHE_MAXSIZE} "600M")
-    #     endif()
+        file(TO_CMAKE_PATH "$ENV{GITHUB_WORKSPACE}" ccache_basedir)
+        set(ENV{CCACHE_BASEDIR} "${ccache_basedir}")
+        set(ENV{CCACHE_DIR} "${ccache_basedir}/.ccache")
+        set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros")
+        set(ENV{CCACHE_COMPRESS} "true")
+        set(ENV{CCACHE_COMPRESSLEVEL} "9")
+        set(ENV{CCACHE_MAXSIZE} "400M")
+        if ("${{ matrix.config.cxx }}" STREQUAL "cl")
+          set(ENV{CCACHE_MAXSIZE} "600M")
+        endif()
 
-    #     execute_process(
-    #       COMMAND git log --format=%B -n 1 ${{ github.event.after }}
-    #       OUTPUT_VARIABLE git_commit_msg
-    #     )
-    #     if ("${git_commit_msg}" MATCHES "ccache:[ ]*clea[r|n]")
-    #       execute_process(COMMAND ccache --clear COMMAND_ECHO STDOUT)
-    #     endif()
+        execute_process(
+          COMMAND git log --format=%B -n 1 ${{ github.event.after }}
+          OUTPUT_VARIABLE git_commit_msg
+        )
+        if ("${git_commit_msg}" MATCHES "ccache:[ ]*clea[r|n]")
+          execute_process(COMMAND ccache --clear COMMAND_ECHO STDOUT)
+        endif()
 
-    #     execute_process(COMMAND ccache -p)
-    #     execute_process(COMMAND ccache -z)
+        execute_process(COMMAND ccache -p)
+        execute_process(COMMAND ccache -z)
 
-    #     if ("x${{ matrix.config.environment_script }}" STREQUAL "x")
-    #       set(CDB_OPTION "--no-cdb")
-    #     else()
-    #       set(CDB_OPTION)
-    #     endif()
+        if ("x${{ matrix.config.environment_script }}" STREQUAL "x")
+          set(CDB_OPTION "--no-cdb")
+        else()
+          set(CDB_OPTION)
+        endif()
 
-    #     if (NOT "${{ steps.elfutils.outputs.elfutils_dir }}" STREQUAL "")
-    #       set(ELFUTILS_OPTION "--elfutils-path;${{ steps.elfutils.outputs.elfutils_dir }}")
-    #     else()
-    #       set(ELFUTILS_OPTION)
-    #     endif()
+        if (NOT "${{ steps.elfutils.outputs.elfutils_dir }}" STREQUAL "")
+          set(ELFUTILS_OPTION "--elfutils-path;${{ steps.elfutils.outputs.elfutils_dir }}")
+        else()
+          set(ELFUTILS_OPTION)
+        endif()
 
-    #     find_package(Python3 REQUIRED COMPONENTS Interpreter)
-    #     string(REPLACE "x86" "x64" Python3_EXECUTABLE "${Python3_EXECUTABLE}")
+        find_package(Python3 REQUIRED COMPONENTS Interpreter)
+        string(REPLACE "x86" "x64" Python3_EXECUTABLE "${Python3_EXECUTABLE}")
 
-    #     set(WITH_TESTS "--with-tests")
-    #     set(NO_DMG "--no-dmg")
-    #     if (${{github.ref}} MATCHES "tags/v")
-    #       unset(WITH_TESTS)
-    #       unset(NO_DMG)
-    #     endif()
+        set(WITH_TESTS "--with-tests")
+        set(NO_DMG "--no-dmg")
+        if (${{github.ref}} MATCHES "tags/v")
+          unset(WITH_TESTS)
+          unset(NO_DMG)
+        endif()
 
-    #     if (NOT "x${{ matrix.config.toolchain_path }}" STREQUAL "x")
-    #       set(path_separator ":")
-    #       if ("${{ runner.os }}" STREQUAL "Windows")
-    #         set(path_separator ";")
-    #       endif()
-    #       set(ENV{PATH} "$ENV{GITHUB_WORKSPACE}/${{ matrix.config.toolchain_path }}${path_separator}$ENV{PATH}")
-    #     endif()
+        if (NOT "x${{ matrix.config.toolchain_path }}" STREQUAL "x")
+          set(path_separator ":")
+          if ("${{ runner.os }}" STREQUAL "Windows")
+            set(path_separator ";")
+          endif()
+          set(ENV{PATH} "$ENV{GITHUB_WORKSPACE}/${{ matrix.config.toolchain_path }}${path_separator}$ENV{PATH}")
+        endif()
 
-    #     execute_process(
-    #       COMMAND python
-    #         -u
-    #         scripts/build.py
-    #         --build-type Release
-    #         --src .
-    #         --build build
-    #         --qt-path "${{ steps.qt.outputs.qt_dir }}"
-    #         --llvm-path "${{ steps.libclang.outputs.libclang_dir }}"
-    #         --python3 "${Python3_EXECUTABLE}"
-    #         ${WITH_TESTS}
-    #         ${CDB_OPTION}
-    #         ${ELFUTILS_OPTION}
-    #         ${NO_DMG}
-    #         --add-config=-DCMAKE_C_COMPILER_LAUNCHER=ccache
-    #         --add-config=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-    #         --add-config=-DIDE_REVISION_URL=https://github.com/$ENV{GITHUB_REPOSITORY}/commits/$ENV{GITHUB_SHA}
-    #         --zip-infix=-${{ matrix.config.artifact }}-${{ github.run_id }}
-    #       RESULT_VARIABLE result
-    #       COMMAND_ECHO STDOUT
-    #       OUTPUT_VARIABLE output
-    #       ERROR_VARIABLE output
-    #       ECHO_OUTPUT_VARIABLE ECHO_ERROR_VARIABLE
-    #     )
-    #     if (NOT result EQUAL 0)
-    #       string(REGEX MATCH "FAILED:.*$" error_message "${output}")
-    #       string(REPLACE "\n" "%0A" error_message "${error_message}")
-    #       message("::error::${error_message}")
-    #       message(FATAL_ERROR "Build failed")
-    #     endif()
+        execute_process(
+          COMMAND python
+            -u
+            scripts/build.py
+            --build-type Release
+            --src .
+            --build build
+            --qt-path "${{ steps.qt.outputs.qt_dir }}"
+            --llvm-path "${{ steps.libclang.outputs.libclang_dir }}"
+            --python3 "${Python3_EXECUTABLE}"
+            ${WITH_TESTS}
+            ${CDB_OPTION}
+            ${ELFUTILS_OPTION}
+            ${NO_DMG}
+            --add-config=-DCMAKE_C_COMPILER_LAUNCHER=ccache
+            --add-config=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            --add-config=-DIDE_REVISION_URL=https://github.com/$ENV{GITHUB_REPOSITORY}/commits/$ENV{GITHUB_SHA}
+            --zip-infix=-${{ matrix.config.artifact }}-${{ github.run_id }}
+          RESULT_VARIABLE result
+          COMMAND_ECHO STDOUT
+          OUTPUT_VARIABLE output
+          ERROR_VARIABLE output
+          ECHO_OUTPUT_VARIABLE ECHO_ERROR_VARIABLE
+        )
+        if (NOT result EQUAL 0)
+          string(REGEX MATCH "FAILED:.*$" error_message "${output}")
+          string(REPLACE "\n" "%0A" error_message "${error_message}")
+          message("::error::${error_message}")
+          message(FATAL_ERROR "Build failed")
+        endif()
 
-    # - name: ccache statistics
-    #   shell: cmake -P {0}
-    #   run: |
-    #     file(TO_CMAKE_PATH "$ENV{GITHUB_WORKSPACE}" ccache_basedir)
-    #     set(ENV{CCACHE_BASEDIR} "${ccache_basedir}")
-    #     set(ENV{CCACHE_DIR} "${ccache_basedir}/.ccache")
-    #     set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros")
-    #     set(ENV{CCACHE_COMPRESS} "true")
-    #     set(ENV{CCACHE_COMPRESSLEVEL} "9")
-    #     set(ENV{CCACHE_MAXSIZE} "400M")
-    #     if ("${{ matrix.config.cxx }}" STREQUAL "cl")
-    #       set(ENV{CCACHE_MAXSIZE} "600M")
-    #     endif()
-    #     execute_process(COMMAND ccache -s)
+    - name: ccache statistics
+      shell: cmake -P {0}
+      run: |
+        file(TO_CMAKE_PATH "$ENV{GITHUB_WORKSPACE}" ccache_basedir)
+        set(ENV{CCACHE_BASEDIR} "${ccache_basedir}")
+        set(ENV{CCACHE_DIR} "${ccache_basedir}/.ccache")
+        set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros")
+        set(ENV{CCACHE_COMPRESS} "true")
+        set(ENV{CCACHE_COMPRESSLEVEL} "9")
+        set(ENV{CCACHE_MAXSIZE} "400M")
+        if ("${{ matrix.config.cxx }}" STREQUAL "cl")
+          set(ENV{CCACHE_MAXSIZE} "600M")
+        endif()
+        execute_process(COMMAND ccache -s)
 
-    # - name: Run tests
-    #   if: matrix.config.artifact == 'running-of-tests-is-disabled'
-    #   shell: cmake -P {0}
-    #   run: |
-    #     include(ProcessorCount)
-    #     ProcessorCount(N)
+    - name: Run tests
+      if: matrix.config.artifact == 'running-of-tests-is-disabled'
+      shell: cmake -P {0}
+      run: |
+        include(ProcessorCount)
+        ProcessorCount(N)
 
-    #     set(ENV{CTEST_OUTPUT_ON_FAILURE} "ON")
+        set(ENV{CTEST_OUTPUT_ON_FAILURE} "ON")
 
-    #     if ("${{ runner.os }}" STREQUAL "Linux")
-    #       set(ENV{QT_QPA_PLATFORM} "offscreen")
-    #     endif()
+        if ("${{ runner.os }}" STREQUAL "Linux")
+          set(ENV{QT_QPA_PLATFORM} "offscreen")
+        endif()
 
-    #     execute_process(
-    #       COMMAND ctest -j ${N} --timeout 5
-    #       WORKING_DIRECTORY build/build
-    #       RESULT_VARIABLE result
-    #       OUTPUT_VARIABLE output
-    #       ERROR_VARIABLE output
-    #       ECHO_OUTPUT_VARIABLE ECHO_ERROR_VARIABLE
-    #       TIMEOUT 600
-    #     )
-    #     if (NOT result EQUAL 0)
-    #       string(REGEX MATCH "[0-9]+% tests.*[0-9.]+ sec.*$" test_results "${output}")
-    #       string(REPLACE "\n" "%0A" test_results "${test_results}")
-    #       # Do not fail on ctest failure
-    #       message("::warning::${test_results}")
-    #     endif()
+        execute_process(
+          COMMAND ctest -j ${N} --timeout 5
+          WORKING_DIRECTORY build/build
+          RESULT_VARIABLE result
+          OUTPUT_VARIABLE output
+          ERROR_VARIABLE output
+          ECHO_OUTPUT_VARIABLE ECHO_ERROR_VARIABLE
+          TIMEOUT 600
+        )
+        if (NOT result EQUAL 0)
+          string(REGEX MATCH "[0-9]+% tests.*[0-9.]+ sec.*$" test_results "${output}")
+          string(REPLACE "\n" "%0A" test_results "${test_results}")
+          # Do not fail on ctest failure
+          message("::warning::${test_results}")
+        endif()
 
-    # - name: Upload
-    #   uses: actions/upload-artifact@v2
-    #   with:
-    #     path: build/qtcreator-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
-    #     name: qtcreator-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        path: build/qtcreator-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
+        name: qtcreator-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
 
-    # - name: Upload Devel
-    #   uses: actions/upload-artifact@v2
-    #   with:
-    #     path: build/qtcreator-${{ matrix.config.artifact }}-${{ github.run_id }}_dev.7z
-    #     name: qtcreator-${{ matrix.config.artifact }}-${{ github.run_id }}_dev.7z
+    - name: Upload Devel
+      uses: actions/upload-artifact@v2
+      with:
+        path: build/qtcreator-${{ matrix.config.artifact }}-${{ github.run_id }}_dev.7z
+        name: qtcreator-${{ matrix.config.artifact }}-${{ github.run_id }}_dev.7z
 
-    # - name: Upload wininterrupt
-    #   if: runner.os == 'Windows'
-    #   uses: actions/upload-artifact@v2
-    #   with:
-    #     path: build/wininterrupt-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
-    #     name: wininterrupt-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
+    - name: Upload wininterrupt
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v2
+      with:
+        path: build/wininterrupt-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
+        name: wininterrupt-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
 
-    # - name: Upload qtcreatorcdbext
-    #   if: runner.os == 'Windows' && matrix.config.is_msvc
-    #   uses: actions/upload-artifact@v2
-    #   with:
-    #     path: build/qtcreatorcdbext-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
-    #     name: qtcreatorcdbext-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
+    - name: Upload qtcreatorcdbext
+      if: runner.os == 'Windows' && matrix.config.is_msvc
+      uses: actions/upload-artifact@v2
+      with:
+        path: build/qtcreatorcdbext-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
+        name: qtcreatorcdbext-${{ matrix.config.artifact }}-${{ github.run_id }}.7z
 
-    # - name: Upload disk image
-    #   if: runner.os == 'macOS' && contains(github.ref, 'tags/v')
-    #   uses: actions/upload-artifact@v2
-    #   with:
-    #     path: build/qt-creator-${{ matrix.config.artifact }}-${{ github.run_id }}.dmg
-    #     name: qt-creator-${{ matrix.config.artifact }}-${{ github.run_id }}.dmg
+    - name: Upload disk image
+      if: runner.os == 'macOS' && contains(github.ref, 'tags/v')
+      uses: actions/upload-artifact@v2
+      with:
+        path: build/qt-creator-${{ matrix.config.artifact }}-${{ github.run_id }}.dmg
+        name: qt-creator-${{ matrix.config.artifact }}-${{ github.run_id }}.dmg
 
-    # - name: Create ccache archive
-    #   working-directory: .ccache
-    #   run: cmake -E tar cf ../${{ steps.ccache.outputs.archive_name }}.tar .
+    - name: Create ccache archive
+      working-directory: .ccache
+      run: cmake -E tar cf ../${{ steps.ccache.outputs.archive_name }}.tar .
 
-    # - name: Upload ccache archive
-    #   uses: actions/upload-artifact@v2
-    #   with:
-    #     path: ./${{ steps.ccache.outputs.archive_name }}.tar
-    #     name: ${{ steps.ccache.outputs.archive_name }}
+    - name: Upload ccache archive
+      uses: actions/upload-artifact@v2
+      with:
+        path: ./${{ steps.ccache.outputs.archive_name }}.tar
+        name: ${{ steps.ccache.outputs.archive_name }}
 
-    # - name: Upload binaries to release
-    #   if: contains(github.ref, 'tags/v')
-    #   uses: svenstaro/upload-release-action@v2
-    #   with:
-    #     tag: ${{ github.ref }}
-    #     repo_token: ${{ secrets.GITHUB_TOKEN }}
-    #     release_name: Release ${{ github.ref }}
-    #     # body: ${{ github.event.head_commit.message }}
-    #     overwrite: true
-    #     file_glob: true
-    #     file: build/*.@(7z|dmg)
+    - name: Upload binaries to release
+      if: contains(github.ref, 'tags/v')
+      uses: svenstaro/upload-release-action@v2
+      with:
+        tag: ${{ github.ref }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        release_name: Release ${{ github.ref }}
+        # body: ${{ github.event.head_commit.message }}
+        overwrite: true
+        file_glob: true
+        file: build/*.@(7z|dmg)
