@@ -437,8 +437,8 @@ jobs:
 
           string(JSON artifacts_length LENGTH "${artifacts_json}" "artifacts")
           math(EXPR artifacts_length "${artifacts_length} - 1")
-          # foreach(idx RANGE 0 ${artifacts_length})
-          #   string(JSON artifact_js GET "${artifacts_json}" "artifacts" ${idx})
+          foreach(idx RANGE 0 ${artifacts_length})
+            string(JSON artifact_js GET "${artifacts_json}" "artifacts" ${idx})
           #   string(JSON name GET "${artifact_js}" "name")
           #   if ("${name}" STREQUAL "${{ steps.ccache.outputs.archive_name }}")
           #     string(JSON download_url GET "${artifact_js}" "archive_download_url")
@@ -461,7 +461,7 @@ jobs:
 
           #     return()
           #   endif()
-          # endforeach()
+          endforeach()
         endforeach()
 
     # - name: Build
